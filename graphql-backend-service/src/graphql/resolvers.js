@@ -4,7 +4,8 @@ const bcrypt = require('bcrypt')
 
 const jwt  = require('jsonwebtoken')
 
-const resolvers = {
+// const { ApolloError } = require('apollo-server-error')
+resolvers = {
     Query: {
         me:(parent, args, context) => {
             return context.user
@@ -13,25 +14,32 @@ const resolvers = {
     Mutation: {
         signup: async (parent, args) => {
             const user = await User.create(args)
-            // const salt = await bcrypt.genSalt()
-            // const hashedPassword = await bcrypt.hash(user.password)
             const token = jwt.sign({userId: user.id}, process.env.SECRET_KEY)
             return {
                 token,
                 user,
             }
         },
-        login: async (parent, {email, password}) => {
-            const user = await User.findOne({email}).select('+password')
-            const valid = await bcrypt.comparePassword(password)
-            if(!valid || !user){
-                throw new Error('Invalid credentials')
+        login: async (_, {email, password}) => {
+            try {
+                const user = await User.findOne({email})
+                if(!user){
+                    throw new Error('invalid Credentials: User not found')
+                }
+                const valid = await bcrypt.compare(password, user.password)
+                if(!valid){
+                    throw new Error('Invalid credentials: Password is Incorrect')
+                }
+                const token = jwt.sign({userId: user.id}, process.env.SECRET_KEY)
+                return {
+                    token,
+                    user,
+                };
+            } catch (error) {
+                console.error('Login Error',error.message)
+                throw new Error('An error occurred during login')
             }
-            const token = jwt.sign({userId: user.id}, process.env.SECRET_KEY)
-            return {
-                token,
-                user,
-            };
+            
         },
     },
 };
